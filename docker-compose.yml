@@ -1,0 +1,214 @@
+version: '3'
+
+volumes:
+  sonarqube_conf:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/sonarqube/conf
+  sonarqube_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/sonarqube/logs
+  sonarqube_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/sonarqube/data
+  sonarqube_extensions:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/sonarqube/extensions
+  postgresql:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/postgresql
+  postgresql_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/postgresql_data
+  wildfly_home:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/wildfly/deployment
+  nexus_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/nexus/data
+  bamboo_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/bamboo/data
+  bamboo_agent_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/bamboo-agent/data
+  apache_home:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /system-data/apache/data
+
+services:
+  sonarqube:
+    container_name: sonarqube
+    image: sonarqube
+    ports:
+      - "9000:9000"
+    restart: always
+    environment:
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar
+      - SONAR_JDBC_URL=jdbc:postgresql://db:5432/sonarqube?currentSchema=sonar
+    volumes:
+      - sonarqube_conf:/opt/sonarqube/conf
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    deploy:
+      resources:
+        limits:
+          memory: 4g 
+  db:
+    container_name: db
+    image: postgres
+    ports:
+      - "5432:5432"
+    restart: always
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+      - POSTGRES_DB=sonar
+    volumes:
+      - postgresql:/var/lib/postgresql
+      - postgresql_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+  nexus:
+    container_name: nexus
+    image: sonatype/nexus3
+    ports:
+      - "29000:8081"
+    restart: always
+    volumes:
+      - nexus_data:/nexus-data sonatype/nexus3
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+  bamboo-server:
+    container_name: bamboo-server
+    image: atlassian/bamboo-server
+    ports:
+      - "54663:54663"
+      - "8085:8085" 
+    restart: always
+    volumes:
+      - bamboo_data:/var/atlassian/application-data/bamboo
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+  bamboo-agent:
+    container_name: bamboo-agent
+    build:
+      context: ./bamboo-agent
+    image: atlassian/bamboo-agent-base
+    command: http://bamboo-server:8085
+    environment:
+      - 'BAMBOO_SERVER=http://bamboo-server:8085'
+      - 'CATALINA_OPTS= -Xms256m -Xmx1g'
+    restart: always
+    volumes:
+      - bamboo_agent_data:/home/bamboo/bamboo-agent-home
+      - wildfly_home:/home/bamboo/tmp/deployments/jboss
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+  jboss-wildfly:
+    container_name: jboss-wildfly
+    build:
+      context: ./wildfly
+    image: jboss/wildfly
+    environment:
+      - JAVA_OPTS=-server -Xms512m -Xmx2048m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -XX:+UseAdaptiveSizePolicy -XX:MaxMetaspaceSize=1024m -Djava.net.preferIPv4Stack=true -Djboss.modules.system.pkgs=org.jboss.byteman -Djava.awt.headless=true-Djava.net.preferIPv4Stack=true
+    ports:
+      - "8080:8080"
+      - "29001:9990"
+    restart: always
+    volumes:
+      - wildfly_home:/opt/jboss/wildfly/standalone/deployments
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+  apache:
+    container_name: apache
+    image: httpd
+    ports:
+      - "80:80"
+    restart: always
+    volumes:
+      - apache_home:/usr/local/apache2/htdocs/
+    deploy:
+      resources:
+        limits:
+          memory: 20m
+  selenium-hub:
+    container_name: selenium-hub
+    image: selenium/hub
+    ports:
+      -  "29002:4444"
+    restart: "always"
+    deploy:
+      resources:
+        limits:
+          memory: 50m
+  node-chrome:
+    container_name: node-chrome
+    image: selenium/node-chrome
+    depends_on:
+      - selenium-hub
+    environment: 
+      - HUB_HOST=selenium-hub
+    volumes: 
+      - /dev/shm:/dev/shm
+    deploy:
+      resources:
+        limits:
+          memory: 50m
+  node-firefox:
+    container_name: node-firefox
+    image: selenium/node-firefox
+    depends_on:
+      - selenium-hub
+    environment: 
+      - HUB_HOST=selenium-hub
+    volumes: 
+      - /dev/shm:/dev/shm
+    deploy:
+      resources:
+        limits:
+          memory: 50m

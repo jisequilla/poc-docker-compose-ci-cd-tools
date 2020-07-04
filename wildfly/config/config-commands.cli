@@ -1,0 +1,18 @@
+batch
+
+set DB_HOST=${DB_HOST}
+set DB_PORT=${DB_PORT}
+set DB_PASSWORD=${DB_PASSWORD}
+set DB_USERNAME=${DB_USERNAME}
+
+#SETTING UP DATASOURCE
+
+#Create the jboss module for oracle
+module add --name=com.oracle --resources=/opt/jboss/wildfly/ojdbc10.jar --dependencies=javax.api,javax.transaction.api
+#Add oracle driver
+/subsystem=datasources/jdbc-driver=oracle:add(driver-name="oracle",driver-module-name="com.oracle",driver-class-name=oracle.jdbc.driver.OracleDriver)
+#Create Oracle datasource
+data-source add --jndi-name=java:jboss/ProtecDS --name=PROTECDS --elytron-enabled=true --connection-url=jdbc:oracle:thin:@$DB_HOST:$DB_PORT:xe --driver-name=oracle --user-name=$DB_USERNAME --password=$DB_PASSWORD
+
+#Execute the batch
+run-batch
