@@ -26,6 +26,6 @@ RUN /opt/jboss/wildfly/config.sh
 
 
 # Create admin user
-RUN /opt/jboss/wildfly/bin/add-user.sh admin Protec2020 --silent
+RUN /opt/jboss/wildfly/bin/add-user.sh admin test --silent
 
 CMD ["/opt/jboss/wildfly/bin/standalone.sh", "-b", "0.0.0.0", "-bmanagement", "0.0.0.0" ]
